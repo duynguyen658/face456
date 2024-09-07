@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Camera Feed</title>
+</head>
+<body>
+<h1>Real-Time Camera Feed</h1>
+<video id="video" width="640" height="480" autoplay></video>
+<script>
+    const video = document.getElementById('video');
+    const ws = new WebSocket('ws://localhost:8000/ws/attendance');
+
+    // Access the webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+            video.srcObject = stream;
+
+            const mediaStream = stream.getVideoTracks()[0];
+            const imageCapture = new ImageCapture(mediaStream);
+
+            ws.onopen = () => {
+                setInterval(async () => {
+                    const frame = await imageCapture.grabFrame();
+                    const canvas = document.createElement('canvas');
+                    canvas.width = frame.width;
+                    canvas.height = frame.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(frame, 0, 0);
+
+                    canvas.toBlob(blob => {
+                        ws.send(blob);
+                    }, 'image/jpeg');
+                }, 100); // Send a frame every 100ms
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Server response:', data);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket connection closed');
+            };
+        })
+        .catch(error => {
+            console.error('Error accessing the webcam:', error);
+        });
+</script>
+</body>
+</html>
